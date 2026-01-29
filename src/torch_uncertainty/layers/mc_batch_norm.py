@@ -97,8 +97,8 @@ class _MCBatchNorm(_BatchNorm):
         """Reset the batch statistics."""
         self.counter = 0
         self.accumulate = True
-        self.means = torch.zeros_like(self.means, device=self.device, dtype=self.device)
-        self.vars = torch.ones_like(self.vars, device=self.device, dtype=self.device)
+        self.means = torch.zeros_like(self.means, device=self.device, dtype=self.dtype)
+        self.vars = torch.ones_like(self.vars, device=self.device, dtype=self.dtype)
 
 
 class MCBatchNorm1d(_MCBatchNorm):
