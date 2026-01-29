@@ -42,7 +42,7 @@ class MCBatchNorm(PostProcessing):
         Note:
             This wrapper will be stochastic in eval mode only.
 
-        Note: 
+        Note:
             Raise an issue if you would like a wrapper for 1d and 3d inputs.
 
         References:
