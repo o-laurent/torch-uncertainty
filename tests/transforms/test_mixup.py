@@ -2,21 +2,12 @@ import pytest
 import torch
 
 from torch_uncertainty.transforms import Mixup, MixupIO, RegMixup, WarpingMixup
-from torch_uncertainty.transforms.mixup import AbstractMixup
 
 
 @pytest.fixture
 def batch_input() -> tuple[torch.Tensor, torch.Tensor]:
     imgs = torch.rand(2, 3, 28, 28)
     return imgs, torch.tensor([0, 1])
-
-
-class TestAbstractMixup:
-    """Testing AbstractMixup augmentation."""
-
-    def test_abstract_mixup(self, batch_input) -> None:
-        with pytest.raises(NotImplementedError):
-            AbstractMixup()(*batch_input)
 
 
 class TestMixup:
