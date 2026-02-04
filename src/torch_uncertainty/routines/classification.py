@@ -289,8 +289,10 @@ class ClassificationRoutine(LightningModule):
         """
         if mixup_params is None:
             mixup_params = {}
-        self.mixup_params = MIXUP_PARAMS | mixup_params
-        return build_mixup(num_classes=self.num_classes, **self.mixup_params)
+        mixup_params = MIXUP_PARAMS | mixup_params
+        self.has_kernel_warping_mixup = mixup_params["mixtype"] == "kernel_warping"
+        self.kw_on_embeddings = mixup_params.pop("kw_on_embeddings")
+        return build_mixup(num_classes=self.num_classes, **mixup_params)
 
     def _apply_mixup(self, batch: tuple[Tensor, Tensor]) -> tuple[Tensor, Tensor]:
         """Apply the mixup augmentation on a :attr:`batch` of images.
@@ -302,12 +304,12 @@ class ClassificationRoutine(LightningModule):
             tuple[Tensor, Tensor]: the images and the corresponding targets transformed with mixup.
         """
         if not self.is_ensemble:
-            if self.mixup_params["mixtype"] == "kernel_warping":
-                if self.mixup_params["dist_sim"] == "emb":
+            if self.has_kernel_warping_mixup:
+                if self.kw_on_embeddings:
                     with torch.no_grad():
                         feats = self.model.feats_forward(batch[0]).detach()
                     batch = self.mixup(*batch, feats)
-                else:  # self.mixup_params["dist_sim"] == "inp":
+                else:
                     batch = self.mixup(*batch, batch[0])
             else:
                 batch = self.mixup(*batch)

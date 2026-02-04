@@ -25,7 +25,8 @@ MIXUP_PARAMS = {
     "kernel_tau_std": 0.5,
     "mixup_alpha": 0,
     "cutmix_alpha": 0,
-    "dist_sim": "emb",
+    "mixupmp_ratio": 1,
+    "kw_on_embeddings": True,
 }
 
 
@@ -102,7 +103,7 @@ def sim_gauss_kernel(dist, tau_max: float = 1.0, tau_std: float = 0.5) -> float:
 
 
 # TODO: Should be a torchvision transform
-class AbstractMixup(ABC, nn.Module):
+class AbstractMixup(nn.Module, ABC):
     def __init__(
         self, alpha: float, num_classes: int, isobatch: bool = False, **kwargs: Any
     ) -> None:
@@ -121,9 +122,9 @@ class AbstractMixup(ABC, nn.Module):
         self.num_classes = num_classes
         self.isobatch = isobatch
 
-    def _get_params(self, batch_size: int, device: torch.device) -> tuple[float, Tensor]:
+    def _get_params(self, batch_size: int, device: torch.device) -> tuple[Tensor, Tensor]:
         if self.isobatch:
-            lam = self.distribution.sample()
+            lam = self.distribution.sample().to(device)
         else:
             lam = self.distribution.sample((batch_size,)).to(device=device)
         index = torch.randperm(batch_size, device=device)
@@ -145,20 +146,28 @@ class AbstractMixup(ABC, nn.Module):
         target: Tensor,
         index: Tensor,
     ) -> Tensor:
-        y1 = F.one_hot(target, self.num_classes)
-        y2 = F.one_hot(target[index], self.num_classes)
+        y1 = F.one_hot(target, self.num_classes).float()
+        y2 = F.one_hot(target[index], self.num_classes).float()
         if isinstance(lam, Tensor):
-            lam = lam.view(-1, *[1 for _ in range(y1.ndim - 1)]).float()
+            lam = lam.view(-1, *[1 for _ in range(y1.ndim - 1)])
 
         return lam * y1 + (1 - lam) * y2
 
     @abstractmethod
-    def __call__(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+    def __call__(
+        self,
+        x: Tensor,
+        y: Tensor,
+        feats: Tensor | None,
+        warp_param: float | None,
+    ) -> tuple[Tensor, Tensor]:
         """Apply mixup on a batch of inputs and targets.
 
         Args:
             x (Tensor): input or input batch.
             y (Tensor): target or target batch.
+            feats (Tensor | None): features for warping mixup.
+            warp_param (float | None): warping parameter.
 
         Returns:
             tuple[Tensor, Tensor]: mixed-up inputs and targets.
@@ -173,7 +182,13 @@ class Mixup(AbstractMixup):
         http://arxiv.org/abs/1710.09412.
     """
 
-    def __call__(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+    def __call__(
+        self,
+        x: Tensor,
+        y: Tensor,
+        feats: Tensor | None = None,
+        warp_param: float | None = None,
+    ) -> tuple[Tensor, Tensor]:
         lam, index = self._get_params(x.size()[0], x.device)
         mixed_x = self._linear_mixing(lam, x, index)
         mixed_y = self._mix_target(lam, y, index)
@@ -181,17 +196,38 @@ class Mixup(AbstractMixup):
 
 
 class MixupMP(AbstractMixup):
-    """Original Mixup method from Zhang et al. modified for MixupMP.
+    """MixupMP method from Wu & Williamson.
 
     In this implementation, we return both the mixuped and the normal
     inputs and targets, all concatenated.
 
+    Warning:
+        When training MixupMP models with r != 1, you should use the MixupMPLoss
+        available in the losses/classification file.
+
     Reference:
-        "mixup: Beyond Empirical Risk Minimization" (ICLR 2021)
-        http://arxiv.org/abs/1710.09412.
+        "Posterior Uncertainty Quantification in Neural Networks using Data Augmentation" (AISTATS 2024)
+        http://arxiv.org/abs/2403.12729.
     """
 
-    def __call__(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+    def __init__(
+        self,
+        alpha: float,
+        num_classes: int,
+        mixup_ratio: float = 1,
+        isobatch: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(alpha, num_classes, isobatch, **kwargs)
+        self.mixup_ratio = mixup_ratio
+
+    def __call__(
+        self,
+        x: Tensor,
+        y: Tensor,
+        feats: Tensor | None = None,
+        warp_param: float | None = None,
+    ) -> tuple[Tensor, Tensor]:
         lam, index = self._get_params(x.size()[0], x.device)
         mixed_x = self._linear_mixing(lam, x, index)
         mixed_y = self._mix_target(lam, y, index)
@@ -206,7 +242,13 @@ class MixupIO(AbstractMixup):
         https://openaccess.thecvf.com/content/CVPR2023/papers/Wang_On_the_Pitfall_of_Mixup_for_Uncertainty_Calibration_CVPR_2023_paper.pdf.
     """
 
-    def __call__(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+    def __call__(
+        self,
+        x: Tensor,
+        y: Tensor,
+        feats: Tensor | None = None,
+        warp_param: float | None = None,
+    ) -> tuple[Tensor, Tensor]:
         lam, index = self._get_params(x.size()[0], x.device)
         mixed_x = self._linear_mixing(lam, x, index)
 
@@ -225,7 +267,13 @@ class RegMixup(AbstractMixup):
         https://arxiv.org/abs/2206.14502.
     """
 
-    def __call__(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+    def __call__(
+        self,
+        x: Tensor,
+        y: Tensor,
+        feats: Tensor | None = None,
+        warp_param: float | None = None,
+    ) -> tuple[Tensor, Tensor]:
         lam, index = self._get_params(x.size()[0], x.device)
         part_x = self._linear_mixing(lam, x, index)
         part_y = self._mix_target(lam, y, index)
@@ -268,8 +316,8 @@ class WarpingMixup(AbstractMixup):
         self,
         x: Tensor,
         y: Tensor,
-        feats: Tensor,
-        warp_param: float = 1.0,
+        feats: Tensor | None,
+        warp_param: float | None = 1.0,
     ) -> tuple[Tensor, Tensor]:
         lam, index = self._get_params(x.size()[0], x.device)
 
@@ -289,17 +337,16 @@ class WarpingMixup(AbstractMixup):
         return mixed_x, mixed_y
 
 
-# ruff: noqa: ARG001
 def build_mixup(
     mixtype: str,
     mixup_alpha: float,
-    cutmix_alpha: float | None,
+    cutmix_alpha: float,
     isobatch: bool,
     num_classes: int,
-    kernel_tau_max: float | None = None,
-    kernel_tau_std: float | None = None,
-    **kwargs: Any,
-):
+    mixupmp_ratio: float,
+    kernel_tau_max: float,
+    kernel_tau_std: float,
+) -> nn.Module:
     if mixup_alpha < 0 or (cutmix_alpha is not None and cutmix_alpha < 0):
         raise ValueError(
             f"Cutmix alpha and Mixup alpha must be positive. Got {mixup_alpha} and {cutmix_alpha}."
@@ -316,6 +363,12 @@ def build_mixup(
             alpha=mixup_alpha,
             isobatch=isobatch,
             num_classes=num_classes,
+        ),
+        "mixup_mp": lambda: MixupMP(
+            alpha=mixup_alpha,
+            isobatch=isobatch,
+            num_classes=num_classes,
+            mixup_ratio=mixupmp_ratio,
         ),
         "mixup_io": lambda: MixupIO(
             alpha=mixup_alpha,
