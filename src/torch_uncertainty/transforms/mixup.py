@@ -102,7 +102,6 @@ def sim_gauss_kernel(dist, tau_max: float = 1.0, tau_std: float = 0.5) -> float:
 #     return 1 / (dist_rate + 1e-12)
 
 
-# TODO: Should be a torchvision transform
 class AbstractMixup(nn.Module, ABC):
     def __init__(
         self, alpha: float, num_classes: int, isobatch: bool = False, **kwargs: Any
