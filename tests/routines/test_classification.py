@@ -37,6 +37,7 @@ class TestClassification:
             loss=nn.BCEWithLogitsLoss(),
             baseline_type="single",
             ema=True,
+            mixtype=None,
         )
 
         trainer.fit(model, dm)
@@ -60,6 +61,7 @@ class TestClassification:
             baseline_type="single",
             ood_criterion="logit",
             swa=True,
+            mixtype=None,
         )
 
         trainer.fit(model, dm)
@@ -164,7 +166,7 @@ class TestClassification:
             baseline_type="single",
             ood_criterion="entropy",
             eval_ood=True,
-            mixtype="mixup_io",
+            mixtype="mixupio",
             mixup_alpha=1.0,
         )
 
@@ -409,7 +411,7 @@ class TestClassification:
                 ood_criterion="other",
             )
 
-        mixup_params = {"cutmix_alpha": -1}
+        mixup_params = {"mixtype": "mixup", "cutmix_alpha": -1}
         with pytest.raises(ValueError):
             ClassificationRoutine(
                 num_classes=10,

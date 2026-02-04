@@ -23,7 +23,7 @@ MIXUP_PARAMS = {
     "isobatch": False,
     "kernel_tau_max": 1.0,
     "kernel_tau_std": 0.5,
-    "mixup_alpha": 0,
+    "mixup_alpha": 1,
     "cutmix_alpha": 0,
     "mixupmp_ratio": 1,
     "kw_on_embeddings": True,
@@ -378,7 +378,7 @@ def build_mixup(
     if mixtype is None:
         return Identity()
 
-    if mixup_alpha < 0 or (cutmix_alpha is not None and cutmix_alpha < 0):
+    if mixup_alpha <= 0 or (cutmix_alpha is not None and cutmix_alpha < 0):
         raise ValueError(
             f"Cutmix alpha and Mixup alpha must be positive. Got {mixup_alpha} and {cutmix_alpha}."
         )
