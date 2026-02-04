@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
-from timm.data import Mixup as timm_Mixup
+from timm.data.mixup import Mixup as timm_Mixup
 from torch import Tensor, nn
 
 from torch_uncertainty.layers import Identity
@@ -154,7 +154,7 @@ class AbstractMixup(nn.Module, ABC):
         return lam * y1 + (1 - lam) * y2
 
     @abstractmethod
-    def __call__(
+    def forward(
         self,
         x: Tensor,
         y: Tensor,
@@ -182,7 +182,7 @@ class Mixup(AbstractMixup):
         http://arxiv.org/abs/1710.09412.
     """
 
-    def __call__(
+    def forward(
         self,
         x: Tensor,
         y: Tensor,
@@ -234,7 +234,7 @@ class MixupMP(AbstractMixup):
             raise ValueError(f"mixup_ratio must be strictly positive. Got {mixup_ratio}.")
         self.mixup_ratio = mixup_ratio
 
-    def __call__(
+    def forward(
         self,
         x: Tensor,
         y: Tensor,
@@ -271,7 +271,7 @@ class MixupIO(AbstractMixup):
         https://openaccess.thecvf.com/content/CVPR2023/papers/Wang_On_the_Pitfall_of_Mixup_for_Uncertainty_Calibration_CVPR_2023_paper.pdf.
     """
 
-    def __call__(
+    def forward(
         self,
         x: Tensor,
         y: Tensor,
@@ -296,7 +296,7 @@ class RegMixup(AbstractMixup):
         https://arxiv.org/abs/2206.14502.
     """
 
-    def __call__(
+    def forward(
         self,
         x: Tensor,
         y: Tensor,
@@ -341,7 +341,7 @@ class WarpingMixup(AbstractMixup):
         self.tau_max = tau_max
         self.tau_std = tau_std
 
-    def __call__(
+    def forward(
         self,
         x: Tensor,
         y: Tensor,
