@@ -157,12 +157,13 @@ class TestCrossEntropyMaxSupLoss:
         loss(torch.tensor([[0.0, 0.0]]), torch.tensor([0], dtype=torch.long))
 
 
-class TestCrossEntropyMixupMPLoss:
-    """Testing the CrossEntropyMaxSupLoss class."""
+class TestMixupMPLoss:
+    """Testing the MixupMPLoss class."""
 
     def test_main(self) -> None:
         loss = MixupMPLoss(mixup_ratio=2, reduction="mean")
         loss(torch.tensor([[0.0, 0.0]]), torch.tensor([0], dtype=torch.long))
+        loss(torch.tensor([[0.0, 0.0]]), torch.tensor([0], dtype=torch.float32))
 
     def test_failures(self) -> None:
         with pytest.raises(
