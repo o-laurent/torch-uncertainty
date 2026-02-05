@@ -1,5 +1,6 @@
 FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
 
+# Look at docker/DOCKER.md for more information on how to use this file and define this variable
 ARG UV_EXTRA=gpu
 ENV UV_EXTRA=${UV_EXTRA}
 
@@ -24,7 +25,7 @@ COPY pyproject.toml /workspace/
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install dependencies all dependencies
+# Install all dependencies with the chosen extra (GPU or CPU)
 RUN uv sync --extra ${UV_EXTRA}
 
 # Configure SSH server
