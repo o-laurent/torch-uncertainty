@@ -75,13 +75,13 @@ class KITTIDepth(VisionDataset):
             tuple[tv_tensors.Image, tv_tensors.Mask]:
                 - image: RGB image as ``tv_tensors.Image``.
                 - target: Depth map as ``tv_tensors.Mask`` in meters (float),
-                with invalid values set to NaN.
+                    with invalid values set to NaN.
 
         Notes:
             - Depth maps are stored as 16-bit PNG files and converted to meters
-            by dividing by 256.0.
+                by dividing by 256.0.
             - Usage of this dataset is subject to the original KITTI license
-            (CC BY-NC-SA 3.0).
+                (CC BY-NC-SA 3.0).
         """
         logging.info(
             "KITTIDepth is copyrighted by the Karlsruhe Institute of Technology "
