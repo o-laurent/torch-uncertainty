@@ -1,5 +1,8 @@
 name: Tests
 
+env:
+  UV_NO_SYNC: true
+
 on:
   push:
     branches:
