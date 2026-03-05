@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import Checkpoint, ModelCheckpoint
@@ -6,7 +6,7 @@ from lightning.pytorch.utilities.types import STEP_OUTPUT
 from typing_extensions import override
 
 
-class TUCheckpoint(Checkpoint):
+class _TUCheckpoint(Checkpoint):
     callbacks: dict[str, ModelCheckpoint]
 
     @override
@@ -62,9 +62,17 @@ class TUCheckpoint(Checkpoint):
         raise NotImplementedError
 
 
-class TUClsCheckpoint(TUCheckpoint):
-    def __init__(self, save_last: bool = False) -> None:
-        """Keep multiple checkpoints corresponding to the best classification metric values."""
+class TUClsCheckpoint(_TUCheckpoint):
+    def __init__(self, save_last: bool | Literal["link"] = False) -> None:
+        """Keep multiple checkpoints corresponding to the best model in terms of: Accuracy,
+        Expected Calibration Error, Brier-Score and Negative Log-Likelihood.
+
+        Args:
+            save_last (bool | "link", optional): When ``True``, saves a last.ckpt copy whenever a
+                checkpoint file gets saved. Can be set to ``"link"`` on a local filesystem to create a
+                symbolic link. This allows accessing the latest checkpoint in a deterministic
+                manner. Default to ``False``.
+        """
         super().__init__()
         self.callbacks = {
             "acc": ModelCheckpoint(
@@ -99,9 +107,17 @@ class TUClsCheckpoint(TUCheckpoint):
         return self.callbacks["acc"].best_model_path
 
 
-class TUSegCheckpoint(TUCheckpoint):
-    def __init__(self, save_last: bool = False) -> None:
-        """Keep multiple checkpoints corresponding to the best segmentation metric values."""
+class TUSegCheckpoint(_TUCheckpoint):
+    def __init__(self, save_last: bool | Literal["link"] = False) -> None:
+        """Keep multiple checkpoints corresponding to the best model in terms of: Mean Intersection
+        over Union, Expected Calibration Error, Brier-Score and Negative Log-Likelihood.
+
+        Args:
+            save_last (bool | "link", optional): When ``True``, saves a last.ckpt copy whenever a
+                checkpoint file gets saved. Can be set to ``"link"`` on a local filesystem to create a
+                symbolic link. This allows accessing the latest checkpoint in a deterministic
+                manner. Default to ``False``.
+        """
         super().__init__()
         self.callbacks = {
             "miou": ModelCheckpoint(
@@ -136,9 +152,21 @@ class TUSegCheckpoint(TUCheckpoint):
         return self.callbacks["miou"].best_model_path
 
 
-class TURegCheckpoint(TUCheckpoint):
-    def __init__(self, probabilistic: bool = False, save_last: bool = False) -> None:
-        """Keep multiple checkpoints corresponding to the best regression metric values."""
+class TURegCheckpoint(_TUCheckpoint):
+    def __init__(
+        self, probabilistic: bool = False, save_last: bool | Literal["link"] = False
+    ) -> None:
+        """Keep multiple checkpoints corresponding to the best model in terms of: Mean Squared
+        Error, and eventually the Negative Log-Likelihood and Quantile Calibration Error.
+
+        Args:
+            probabilistic (bool, optional): If ``True``, also tracks the Negative Log-Likelihood and
+                the Quantile Calibration Error. Default to ``False``.
+            save_last (bool | "link", optional): When ``True``, saves a last.ckpt copy whenever a
+                checkpoint file gets saved. Can be set to ``"link"`` on a local filesystem to create a
+                symbolic link. This allows accessing the latest checkpoint in a deterministic
+                manner. Default to ``False``.
+        """
         super().__init__()
         self.callbacks = {
             "mse": ModelCheckpoint(
