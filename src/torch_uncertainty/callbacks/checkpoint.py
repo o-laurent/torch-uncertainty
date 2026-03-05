@@ -2,11 +2,12 @@ from typing import Any
 
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import Checkpoint, ModelCheckpoint
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 from typing_extensions import override
 
 
 class TUCheckpoint(Checkpoint):
-    callbacks: dict[str, Checkpoint]
+    callbacks: dict[str, ModelCheckpoint]
 
     @override
     def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
@@ -23,8 +24,8 @@ class TUCheckpoint(Checkpoint):
         self,
         trainer: Trainer,
         pl_module: LightningModule,
-        outputs: dict,
-        batch: dict,
+        outputs: STEP_OUTPUT,
+        batch: Any,
         batch_idx: int,
     ) -> None:
         for callback in self.callbacks.values():
@@ -56,11 +57,13 @@ class TUCheckpoint(Checkpoint):
             callback.load_state_dict(state_dict=state_dict[key])
 
     @property
-    def best_model_path(self) -> str: ...
+    def best_model_path(self) -> str:
+        """Return the path to the best model checkpoint based on the primary metric."""
+        raise NotImplementedError
 
 
 class TUClsCheckpoint(TUCheckpoint):
-    def __init__(self) -> None:
+    def __init__(self, save_last: bool = False) -> None:
         """Keep multiple checkpoints corresponding to the best classification metric values."""
         super().__init__()
         self.callbacks = {
@@ -68,6 +71,7 @@ class TUClsCheckpoint(TUCheckpoint):
                 filename="epoch={epoch}-step={step}-val_acc={val/cls/Acc:.3f}",
                 monitor="val/cls/Acc",
                 mode="max",
+                save_last=save_last,
                 auto_insert_metric_name=False,
             ),
             "ece": ModelCheckpoint(
@@ -96,7 +100,7 @@ class TUClsCheckpoint(TUCheckpoint):
 
 
 class TUSegCheckpoint(TUCheckpoint):
-    def __init__(self) -> None:
+    def __init__(self, save_last: bool = False) -> None:
         """Keep multiple checkpoints corresponding to the best segmentation metric values."""
         super().__init__()
         self.callbacks = {
@@ -104,6 +108,7 @@ class TUSegCheckpoint(TUCheckpoint):
                 filename="epoch={epoch}-step={step}-val_miou={val/seg/mIoU:.3f}",
                 monitor="val/seg/mIoU",
                 mode="max",
+                save_last=save_last,
                 auto_insert_metric_name=False,
             ),
             "ece": ModelCheckpoint(
@@ -132,7 +137,7 @@ class TUSegCheckpoint(TUCheckpoint):
 
 
 class TURegCheckpoint(TUCheckpoint):
-    def __init__(self, probabilistic: bool = False) -> None:
+    def __init__(self, probabilistic: bool = False, save_last: bool = False) -> None:
         """Keep multiple checkpoints corresponding to the best regression metric values."""
         super().__init__()
         self.callbacks = {
@@ -141,6 +146,7 @@ class TURegCheckpoint(TUCheckpoint):
                 monitor="val/reg/MSE",
                 mode="min",
                 auto_insert_metric_name=False,
+                save_last=save_last,
             ),
         }
 
