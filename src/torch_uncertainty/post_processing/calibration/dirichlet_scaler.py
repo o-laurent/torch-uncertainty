@@ -3,6 +3,7 @@ from typing import Literal
 
 import torch
 from torch import Tensor, device, nn
+from torch.nn.functional import linear
 from torch.optim import LBFGS
 from torch.utils.data import DataLoader
 
@@ -87,13 +88,10 @@ class DirichletScaler(MatrixScaler):
             optimizer.zero_grad()
             loss = self.criterion(self._scale(all_logits), all_labels)
             if self.lambda_reg is not None:
-                loss += (
-                    self.lambda_reg
-                    * (self.temp_w.sum() - self.temp_w.diagonal().sum())
-                    / (self.num_classes * (self.num_classes - 1))
-                )
+                off_diag_sq = (self.temp_w**2).sum() - (self.temp_w.diagonal() ** 2).sum()
+                loss += self.lambda_reg * off_diag_sq / (self.num_classes * (self.num_classes - 1))
             if self.mu_reg is not None:
-                loss += self.mu_reg * self.temp_b.mean()
+                loss += self.mu_reg * (self.temp_b**2).mean()
             loss.backward()
             return loss
 
@@ -105,7 +103,7 @@ class DirichletScaler(MatrixScaler):
 
     # Compute the product with the logprobs instead of the logits
     def _scale(self, logits: Tensor) -> Tensor:
-        return self.temp_w @ torch.log_softmax(logits, dim=1) + self.temp_b
+        return linear(torch.log_softmax(logits, dim=1), self.temp_w, self.temp_b)
 
     @property
     def temperature(self) -> list:

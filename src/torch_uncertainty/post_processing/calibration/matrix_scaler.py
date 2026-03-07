@@ -2,6 +2,7 @@ from typing import Literal
 
 import torch
 from torch import Tensor, device, nn
+from torch.nn.functional import linear
 
 from .scaler import Scaler
 
@@ -62,7 +63,7 @@ class MatrixScaler(Scaler):
         )
 
     def _scale(self, logits: Tensor) -> Tensor:
-        return self.temp_w @ logits + self.temp_b
+        return linear(logits, self.temp_w, self.temp_b)
 
     @property
     def temperature(self) -> list:
