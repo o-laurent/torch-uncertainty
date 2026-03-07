@@ -81,13 +81,12 @@ class TestVectorScaler:
     """Testing the VectorScaler class."""
 
     def test_main(self) -> None:
-        scaler = VectorScaler(model=nn.Identity(), num_classes=1, init_w=2)
-        scaler.set_temperature(1, 0)
+        scaler = VectorScaler(model=nn.Identity(), num_classes=1, init_val=2)
+        scaler.set_temperature(1)
 
         logits = torch.tensor([[1, 2, 3]], dtype=torch.float32)
 
         assert scaler.temp_w.item() == 1.0
-        assert scaler.temp_b.item() == 0.0
         assert torch.all(scaler(logits) == logits)
 
         _ = scaler.temperature

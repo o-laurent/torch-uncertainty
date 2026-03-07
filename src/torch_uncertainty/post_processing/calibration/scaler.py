@@ -88,7 +88,7 @@ class Scaler(PostProcessing):
         # Handle binary classification case
         if all_logits.dim() == 2 and all_logits.shape[1] == 1:
             all_logits = all_logits.squeeze(1)
-            # Stabilize optimization
+        # Stabilize optimization
         if all_logits.dim() == 1:
             all_logits = all_logits.clamp(self.eps, 1 - self.eps)
             # allow labels as probabilities
@@ -130,7 +130,6 @@ class Scaler(PostProcessing):
         Returns:
             Tensor: Scaled logits.
         """
-        ...
 
     def fit_predict(
         self,
@@ -142,4 +141,5 @@ class Scaler(PostProcessing):
 
     @property
     @abstractmethod
-    def temperature(self) -> list: ...
+    def temperature(self) -> list[Tensor]:
+        """Get the temperature parameters."""

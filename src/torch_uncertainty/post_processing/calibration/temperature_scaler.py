@@ -44,7 +44,7 @@ class TemperatureScaler(Scaler):
             val (float): Temperature value.
         """
         if val <= 0:
-            raise ValueError(f"Temperature value must be positive. Got {val}")
+            raise ValueError(f"Temperature value must be strictly positive. Got {val}")
 
         self.temp = nn.Parameter(torch.ones(1, device=self.device) * val, requires_grad=True)
 
