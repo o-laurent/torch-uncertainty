@@ -51,14 +51,14 @@ class VectorScaler(Scaler):
         """
         if isinstance(val, float | int) or (isinstance(val, Tensor) and val.size == 1):
             if val <= 0:
-                raise ValueError(f"Temperature value must be strictly positive. Got {val}")
+                raise ValueError(f"Temperature value must be strictly positive. Got {val}.")
             self.inv_temp = nn.Parameter(
                 torch.ones(self.num_classes, device=self.device) / val,
                 requires_grad=True,
             )
         elif isinstance(val, Tensor):
             if torch.any(val <= 0):
-                raise ValueError(f"Temperature value must be strictly positive. Got {val}")
+                raise ValueError(f"Temperature value must be strictly positive. Got {val}.")
             self.inv_temp = nn.Parameter(
                 val.to(device=self.device),
                 requires_grad=True,

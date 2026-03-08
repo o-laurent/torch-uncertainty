@@ -12,7 +12,7 @@ class Conformal(PostProcessing):
     """Conformal base class.
 
     Warning:
-        This implementation only works in the multiclasss setting.
+        This implementation only works in the multiclass setting. Raise an issue if binary is needed.
     """
 
     q_hat: Tensor | None = None

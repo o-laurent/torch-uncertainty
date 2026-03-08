@@ -1,7 +1,9 @@
+import logging
 from typing import Literal
 
 import torch
 from torch import Tensor, nn
+from torch.utils.data import DataLoader
 
 from .scaler import Scaler
 
@@ -32,14 +34,29 @@ class TemperatureScaler(Scaler):
 
         Warning:
             If the model is binary, we will by default apply the sigmoid before transposing the prediction to the
-            2-class case.
+            corresponding 2-class logits.
+
+        Note:
+            The Scaler will log an error if the temperature after fitting is negative.
         """
         super().__init__(model=model, lr=lr, max_iter=max_iter, eps=eps, device=device)
 
         if init_temperature <= 0:
-            raise ValueError(f"Initial temperature value must be positive. Got {init_temperature}")
+            raise ValueError(f"Initial temperature value must be positive. Got {init_temperature}.")
 
         self.set_temperature(init_temperature)
+
+    def fit(
+        self,
+        dataloader: DataLoader,
+        save_logits: bool = False,
+        progress: bool = True,
+    ) -> None:
+        super().fit(dataloader=dataloader, save_logits=save_logits, progress=progress)
+        if self.inv_temp <= 0:
+            logging.error(
+                "TemperatureScaler converged to a negative temperature %.3f.", 1 / self.inv_temp
+            )
 
     def set_temperature(self, val: float) -> None:
         """Set the temperature to a fixed value.
@@ -48,7 +65,7 @@ class TemperatureScaler(Scaler):
             val (float): Temperature value.
         """
         if val <= 0:
-            raise ValueError(f"Temperature value must be strictly positive. Got {val}")
+            raise ValueError(f"Temperature value must be strictly positive. Got {val}.")
 
         self.inv_temp = nn.Parameter(torch.ones(1, device=self.device) / val, requires_grad=True)
         self.trained = False

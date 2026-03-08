@@ -66,12 +66,15 @@ class Scaler(PostProcessing):
         """Fit the temperature parameters to the calibration data.
 
         Args:
-            dataloader (DataLoader): Dataloader with the calibration data. If there is no model,
-                the dataloader should include the confidence score directly and not the logits.
+            dataloader (DataLoader): Dataloader with the logits and target of the calibration data.
             save_logits (bool, optional): Whether to save the logits and
                 labels in memory. Defaults to ``False``.
             progress (bool, optional): Whether to show a progress bar.
                 Defaults to ``True``.
+
+        Warning:
+            Please provide logits and not probabilities/likelihoods within the dataloader, otherwise
+            the Scaler might converge to negative temperatures.
         """
         if self.model is None or isinstance(self.model, nn.Identity):
             logging.warning(
