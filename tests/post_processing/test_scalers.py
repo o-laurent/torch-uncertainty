@@ -123,10 +123,8 @@ class TestVectorScaler:
             VectorScaler(num_classes=2, init_temperature=torch.tensor([0]))
 
         vs = VectorScaler(num_classes=2)
-        with pytest.raises(
-            ValueError, match=r"Temperature value must be strictly positive. Got False."
-        ):
-            vs.set_temperature(False)
+        with pytest.raises(ValueError, match=r"val should be a float or a Tensor. Got "):
+            vs.set_temperature([0, 0, 0])
 
 
 class TestMatrixScaler:
@@ -151,7 +149,7 @@ class TestDirichletScaler:
     """Testing the DirichletScaler class."""
 
     def test_main(self) -> None:
-        scaler = DirichletScaler(model=nn.Identity(), num_classes=2, lambda_reg=1e-3, mu_reg=1e-3)
+        scaler = DirichletScaler(model=nn.Identity(), num_classes=2)
         logits = torch.tensor([[[0, 1], [0, 2], [0, 3]]], dtype=torch.float32)
 
         assert scaler.inv_temperature_weight.mean() == 1.0 / 2  # Fills only the diagonal with ones
@@ -170,6 +168,17 @@ class TestDirichletScaler:
             num_classes=4, model=nn.Identity(), init_weight_temperature=1, lr=1, max_iter=10
         )
         scaler.fit(dl, save_logits=True)
+
+        scaler = DirichletScaler(
+            num_classes=4,
+            model=nn.Identity(),
+            init_weight_temperature=1,
+            lr=1,
+            max_iter=10,
+            lambda_reg=1e-3,
+            mu_reg=1e-3,
+        )
+        scaler.fit(dl)
 
     def test_errors(self) -> None:
         with pytest.raises(ValueError, match=r"lambda_reg must be None or positive. Got "):
