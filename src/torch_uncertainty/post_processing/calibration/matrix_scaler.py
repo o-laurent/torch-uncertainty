@@ -13,8 +13,8 @@ class MatrixScaler(Scaler):
         self,
         num_classes: int,
         model: nn.Module | None = None,
-        init_weight_temperature: float = 1,
-        init_bias_temperature: float | None = None,
+        init_weight_temperature: float | Tensor = 1,
+        init_bias_temperature: float | Tensor | None = None,
         lr: float = 0.1,
         max_iter: int = 200,
         eps: float = 1e-8,
@@ -25,8 +25,8 @@ class MatrixScaler(Scaler):
         Args:
             num_classes (int): Number of classes.
             model (nn.Module | None): Model to calibrate. Defaults to ``None``.
-            init_weight_temperature (float, optional): Initial value for the weights. Defaults to ``1``.
-            init_bias_temperature (float | None, optional): Initial value for the bias. The inverse bias will be
+            init_weight_temperature (float | Tensor , optional): Initial value for the weights. Defaults to ``1``.
+            init_bias_temperature (float | Tensor | None, optional): Initial value for the bias. The inverse bias will be
                 set to the ``0`` vector if set to ``None``. Defaults to ``None``.
             lr (float, optional): Learning rate for the optimizer. Defaults to ``0.1``.
             max_iter (int, optional): Maximum number of iterations for the optimizer. Defaults to ``100``.

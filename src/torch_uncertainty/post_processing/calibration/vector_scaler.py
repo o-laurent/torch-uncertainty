@@ -12,7 +12,7 @@ class VectorScaler(Scaler):
         self,
         num_classes: int,
         model: nn.Module | None = None,
-        init_temperature: float = 1,
+        init_temperature: float | Tensor = 1,
         lr: float = 0.1,
         max_iter: int = 200,
         eps: float = 1e-8,
@@ -23,7 +23,7 @@ class VectorScaler(Scaler):
         Args:
             model (nn.Module): Model to calibrate.
             num_classes (int): Number of classes.
-            init_temperature (float, optional): Initial value for the weights. Defaults to ``1``.
+            init_temperature (float | Tensor, optional): Initial value for the weights. Defaults to ``1``.
             lr (float, optional): Learning rate for the optimizer. Defaults to ``0.1``.
             max_iter (int, optional): Maximum number of iterations for the optimizer. Defaults to ``100``.
             eps (float): Small value for stability. Defaults to ``1e-8``.
@@ -60,7 +60,7 @@ class VectorScaler(Scaler):
             if torch.any(val <= 0):
                 raise ValueError(f"Temperature value must be strictly positive. Got {val}.")
             self.inv_temp = nn.Parameter(
-                val.to(device=self.device),
+                val.to(dtype=torch.float32, device=self.device),
                 requires_grad=True,
             )
         else:

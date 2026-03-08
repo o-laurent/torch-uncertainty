@@ -12,7 +12,7 @@ class TemperatureScaler(Scaler):
     def __init__(
         self,
         model: nn.Module | None = None,
-        init_temperature: float = 1,
+        init_temperature: float | Tensor = 1,
         lr: float = 0.1,
         max_iter: int = 100,
         eps: float = 1e-8,
@@ -22,7 +22,7 @@ class TemperatureScaler(Scaler):
 
         Args:
             model (nn.Module): Model to calibrate.
-            init_temperature (float, optional): Initial value for the temperature. Defaults to ``1``.
+            init_temperature (float | Tensor, optional): Initial value for the temperature. Defaults to ``1``.
             lr (float, optional): Learning rate for the optimizer. Defaults to ``0.1``.
             max_iter (int, optional): Maximum number of iterations for the optimizer. Defaults to ``100``.
             eps (float): Small value for stability. Defaults to ``1e-8``.
@@ -53,7 +53,7 @@ class TemperatureScaler(Scaler):
         progress: bool = True,
     ) -> None:
         super().fit(dataloader=dataloader, save_logits=save_logits, progress=progress)
-        if self.inv_temp <= 0:
+        if self.inv_temp <= 0:  # coverage: ignore
             logging.error(
                 "TemperatureScaler converged to a negative temperature %.3f.", 1 / self.inv_temp
             )
