@@ -7,7 +7,8 @@ In this tutorial, we use *TorchUncertainty* to improve the calibration
 of the top-label predictions and the reliability of the underlying neural network.
 
 This tutorial provides extensive details on how to use the TemperatureScaler
-class and its derivative, VectorScaler and MatrixScaler. However, please note that this is usually done
+class and its derivatives, VectorScaler, MatrixScaler, and Dirichlet calibration, as well
+as IsotonicRegressionScaler. However, please note that this is usually done
 automatically in the datamodule when setting the `postprocess_set` to val or test.
 
 Through this tutorial, we also see how to use the datamodules outside any Lightning trainers,
@@ -248,11 +249,41 @@ fig.tight_layout()
 fig.show()
 
 # %%
-# The results are somewhat better than MatrixScaling, but we again do not have enough data to
-# tune the parameters of Dirichlet scaling.
+# The results are somewhat better than MatrixScaling, but we again likely do not have enough data to
+# correclty tune the parameters of Dirichlet scaling.
 #
-# Notes
-# ~~~~~
+# 10. Isotonic Calibration
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# Isotonic calibration
+
+from torch_uncertainty.post_processing import IsotonicRegressionScaler
+
+# Fit the scaler on the calibration dataset
+scaled_model = IsotonicRegressionScaler(model=model)
+scaled_model.fit(dataloader=calibration_dataloader)
+
+# Reset the ECE
+ece.reset()
+
+# Iterate on the test dataloader
+for sample, target in test_dataloader:
+    logits = scaled_model(sample)
+    probs = logits.softmax(-1)
+    ece.update(probs, target)
+
+print(f"ECE after Isotonic calibration - {ece.compute():.3%}.")
+
+fig, ax = ece.plot()
+fig.tight_layout()
+fig.show()
+
+# %%
+# In this specific case, the results are better than MatrixScaling and Dirichlet scaling but
+# not as good as those obtained with Temperature scaling.
+#
+# Remark
+# ~~~~~~
 #
 # Temperature scaling is very efficient when the calibration set is representative of the test set.
 # In this case, we say that the calibration and test set are drawn from the same distribution.

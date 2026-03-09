@@ -1,6 +1,12 @@
 # ruff: noqa: F401
 from .abstract import PostProcessing
-from .calibration import DirichletScaler, MatrixScaler, TemperatureScaler, VectorScaler
+from .calibration import (
+    DirichletScaler,
+    IsotonicRegressionScaler,
+    MatrixScaler,
+    TemperatureScaler,
+    VectorScaler,
+)
 from .conformal import (
     Conformal,
     ConformalClsAPS,
