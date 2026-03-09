@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 
 from torch_uncertainty.post_processing import (
     DirichletScaler,
+    HistogramBinningScaler,
     IsotonicRegressionScaler,
     MatrixScaler,
     TemperatureScaler,
@@ -241,3 +242,62 @@ class TestIsotonicRegressionScaler:
         # Ensure probabilities sum to 1
         calib_probs = torch.softmax(calib_logits, dim=-1)
         torch.testing.assert_close(calib_probs.sum(dim=-1), torch.ones(calib_probs.shape[0]))
+
+
+class TestHistogramBinningScaler:
+    """Testing the HistogramBinningScaler class."""
+
+    def test_main(self) -> None:
+        scaler = HistogramBinningScaler(model=nn.Identity(), num_bins=10)
+        logits = torch.tensor([[1.0, 2.0, 3.0]])
+
+        assert not scaler.trained
+        assert scaler.num_bins == 10
+        assert torch.all(scaler(logits) == logits)
+
+    def test_invalid_bins(self) -> None:
+        with pytest.raises(ValueError, match="Number of bins must be strictly positive"):
+            HistogramBinningScaler(model=nn.Identity(), num_bins=0)
+
+    def test_fit_binary(self, binary_dataloader) -> None:
+        scaler = HistogramBinningScaler(model=nn.Identity(), num_bins=5)
+        scaler.fit(binary_dataloader, progress=False)
+
+        assert scaler.trained
+        assert scaler.num_classes == 1
+        assert scaler.bin_values.shape == (5,)
+
+        # Test inference
+        inputs, _ = next(iter(binary_dataloader))
+        calib_logits = scaler(inputs)
+        assert calib_logits.shape == inputs.shape
+        assert not torch.isnan(calib_logits).any()
+
+    def test_fit_multiclass_ovr(self, multiclass_dataloader) -> None:
+        scaler = HistogramBinningScaler(model=nn.Identity(), num_bins=5, ovr_binning=True)
+        scaler.fit(multiclass_dataloader, progress=False)
+
+        assert scaler.trained
+        assert scaler.num_classes == 3
+        assert scaler.bin_values.shape == (3, 5)  # (num_classes, num_bins)
+
+        inputs, _ = next(iter(multiclass_dataloader))
+        calib_logits = scaler(inputs)
+
+        # Output should be stable and normalized probabilities
+        calib_probs = torch.softmax(calib_logits, dim=-1)
+        torch.testing.assert_close(calib_probs.sum(dim=-1), torch.ones(len(inputs)))
+
+    def test_fit_multiclass_shared(self, multiclass_dataloader) -> None:
+        scaler = HistogramBinningScaler(model=nn.Identity(), num_bins=5, ovr_binning=False)
+        scaler.fit(multiclass_dataloader, progress=False)
+
+        assert scaler.trained
+        assert scaler.num_classes == 3
+        assert scaler.bin_values.shape == (5,)  # Shared bins
+
+        inputs, _ = next(iter(multiclass_dataloader))
+        calib_logits = scaler(inputs)
+
+        calib_probs = torch.softmax(calib_logits, dim=-1)
+        torch.testing.assert_close(calib_probs.sum(dim=-1), torch.ones(len(inputs)))

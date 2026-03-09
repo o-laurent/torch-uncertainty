@@ -2,6 +2,7 @@
 from .abstract import PostProcessing
 from .calibration import (
     DirichletScaler,
+    HistogramBinningScaler,
     IsotonicRegressionScaler,
     MatrixScaler,
     TemperatureScaler,
