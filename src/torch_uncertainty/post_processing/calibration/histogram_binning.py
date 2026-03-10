@@ -5,17 +5,21 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from torch_uncertainty.post_processing import PostProcessing
 
+from .utils import _extract_data
+
 
 class HistogramBinningScaler(PostProcessing):
+    num_classes: int | None = None
+    bin_edges: Tensor | None = None
+    bin_values: Tensor | None = None
+
     def __init__(
         self,
         model: nn.Module | None = None,
         num_bins: int = 15,
-        ovr_binning: bool = True,
         eps: float = 1e-6,
         device: Literal["cpu", "cuda"] | torch.device | None = None,
     ) -> None:
@@ -28,9 +32,6 @@ class HistogramBinningScaler(PostProcessing):
         Args:
             model (nn.Module): Model to calibrate. Defaults to ``None``.
             num_bins (int): Number of equal-width bins to use. Defaults to ``15``.
-            ovr_binning (bool): Whether to use One-vs-Rest binning for multiclass.
-                If ``True``, fits separate bins per class. If ``False``, fits
-                a single set of bins shared across all classes. Defaults to ``True``.
             eps (float): Small value for stability when converting probs back to logits.
                 Defaults to ``1e-6``.
             device (Optional[Literal["cpu", "cuda"]], optional): Device to use for
@@ -47,13 +48,8 @@ class HistogramBinningScaler(PostProcessing):
             raise ValueError(f"Number of bins must be strictly positive. Got {num_bins}.")
 
         self.num_bins = num_bins
-        self.ovr_binning = ovr_binning
         self.device = device
         self.eps = eps
-
-        self.num_classes: int | None = None
-        self.bin_edges: Tensor | None = None
-        self.bin_values: Tensor | None = None
 
     def fit(
         self,
@@ -73,7 +69,9 @@ class HistogramBinningScaler(PostProcessing):
             )
             self.model = nn.Identity()
 
-        all_logits, all_labels = self._extract_data(dataloader, progress)
+        all_logits, all_labels = _extract_data(
+            dataloader=dataloader, model=self.model, device=self.device, progress=progress
+        )
 
         # Determine dimensionality
         if all_logits.dim() == 1 or (all_logits.dim() == 2 and all_logits.shape[1] == 1):
@@ -101,21 +99,6 @@ class HistogramBinningScaler(PostProcessing):
                     self.bin_values[b] = labels[mask].mean()
                 else:
                     self.bin_values[b] = bin_centers[b]
-
-        elif not self.ovr_binning:
-            # Shared Multiclass: Pool all probabilities and one-hot targets
-            probs_flat = probs.flatten()
-            labels_one_hot = F.one_hot(labels.long(), self.num_classes).float().flatten()
-
-            self.bin_values = torch.zeros(self.num_bins, device=self.device)
-            indices = torch.bucketize(probs_flat, boundaries)
-            for b in range(self.num_bins):
-                mask = indices == b
-                if mask.any():
-                    self.bin_values[b] = labels_one_hot[mask].mean()
-                else:
-                    self.bin_values[b] = bin_centers[b]
-
         else:
             # One-vs-Rest Multiclass
             self.bin_values = torch.zeros((self.num_classes, self.num_bins), device=self.device)
@@ -148,13 +131,6 @@ class HistogramBinningScaler(PostProcessing):
             probs = torch.sigmoid(logits)
             indices = torch.bucketize(probs, boundaries)
             calib_probs = self.bin_values[indices]
-
-        elif not self.ovr_binning:
-            probs = torch.softmax(logits, dim=-1)
-            indices = torch.bucketize(probs, boundaries)
-            calib_probs = self.bin_values[indices]
-            calib_probs /= calib_probs.sum(dim=-1, keepdim=True) + 1e-12
-
         else:  # OvR Strategy
             probs = torch.softmax(logits, dim=-1)
             indices = torch.bucketize(probs, boundaries)  # Shape: (N, K)
@@ -170,19 +146,3 @@ class HistogramBinningScaler(PostProcessing):
         if self.num_classes == 1:
             return torch.logit(calib_probs, eps=self.eps)
         return torch.log(calib_probs)
-
-    def _extract_data(self, dataloader: DataLoader, progress: bool) -> tuple[Tensor, Tensor]:
-        all_logits, all_labels = [], []
-        with torch.no_grad():
-            for inputs, labels in tqdm(dataloader, disable=not progress):
-                logits = self.model(inputs.to(self.device))
-                all_logits.append(logits)
-                all_labels.append(labels)
-
-        all_logits = torch.cat(all_logits).to(self.device)
-        all_labels = torch.cat(all_labels).to(self.device)
-
-        if all_labels.ndim == 1:
-            all_labels = all_labels.long()
-
-        return all_logits, all_labels

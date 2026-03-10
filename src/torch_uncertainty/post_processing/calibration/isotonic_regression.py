@@ -7,9 +7,10 @@ import torch
 from sklearn.isotonic import IsotonicRegression
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from torch_uncertainty.post_processing import PostProcessing
+
+from .utils import _extract_data
 
 if util.find_spec("sklearn"):
     from sklearn.isotonic import IsotonicRegression
@@ -90,7 +91,9 @@ class IsotonicRegressionScaler(PostProcessing):
             )
             self.model = nn.Identity()
 
-        all_logits, all_labels = self._extract_data(dataloader, progress)
+        all_logits, all_labels = _extract_data(
+            dataloader=dataloader, model=self.model, device=self.device, progress=progress
+        )
 
         # Convert logits to probabilities
         if all_logits.dim() == 1 or (all_logits.dim() == 2 and all_logits.shape[1] == 1):
@@ -160,30 +163,3 @@ class IsotonicRegressionScaler(PostProcessing):
         if self.num_classes == 1:
             return torch.logit(calib_probs, eps=self.eps)
         return torch.log(calib_probs)
-
-    def _extract_data(self, dataloader: DataLoader, progress: bool) -> tuple[Tensor, Tensor]:
-        """Extract logits and labels from the dataloader.
-
-        Args:
-            dataloader (DataLoader): The calibration dataloader.
-            progress (bool): Whether to show the progress bar.
-
-        Returns:
-            tuple[Tensor, Tensor]: Tensors containing all logits and labels
-                from the dataset.
-        """
-        all_logits = []
-        all_labels = []
-        with torch.no_grad():
-            for inputs, labels in tqdm(dataloader, disable=not progress):
-                logits = self.model(inputs.to(self.device))
-                all_logits.append(logits)
-                all_labels.append(labels)
-
-        all_logits = torch.cat(all_logits).to(self.device)
-        all_labels = torch.cat(all_labels).to(self.device)
-
-        if all_labels.ndim == 1:
-            all_labels = all_labels.long()
-
-        return all_logits, all_labels

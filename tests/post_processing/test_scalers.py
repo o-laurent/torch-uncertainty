@@ -273,8 +273,8 @@ class TestHistogramBinningScaler:
         assert calib_logits.shape == inputs.shape
         assert not torch.isnan(calib_logits).any()
 
-    def test_fit_multiclass_ovr(self, multiclass_dataloader) -> None:
-        scaler = HistogramBinningScaler(model=nn.Identity(), num_bins=5, ovr_binning=True)
+    def test_fit_multiclass(self, multiclass_dataloader) -> None:
+        scaler = HistogramBinningScaler(model=nn.Identity(), num_bins=5)
         scaler.fit(multiclass_dataloader, progress=False)
 
         assert scaler.trained
@@ -285,19 +285,5 @@ class TestHistogramBinningScaler:
         calib_logits = scaler(inputs)
 
         # Output should be stable and normalized probabilities
-        calib_probs = torch.softmax(calib_logits, dim=-1)
-        torch.testing.assert_close(calib_probs.sum(dim=-1), torch.ones(len(inputs)))
-
-    def test_fit_multiclass_shared(self, multiclass_dataloader) -> None:
-        scaler = HistogramBinningScaler(model=nn.Identity(), num_bins=5, ovr_binning=False)
-        scaler.fit(multiclass_dataloader, progress=False)
-
-        assert scaler.trained
-        assert scaler.num_classes == 3
-        assert scaler.bin_values.shape == (5,)  # Shared bins
-
-        inputs, _ = next(iter(multiclass_dataloader))
-        calib_logits = scaler(inputs)
-
         calib_probs = torch.softmax(calib_logits, dim=-1)
         torch.testing.assert_close(calib_probs.sum(dim=-1), torch.ones(len(inputs)))
