@@ -66,7 +66,7 @@ class SmoothCalibrationError(Metric):
         if kernel_type not in ["logit", "reflected"]:
             raise ValueError(f"kernel_type must be 'logit' or 'reflected'. Got {kernel_type}.")
         if not isinstance(bandwidth, float) and bandwidth != "auto":
-            raise ValueError(f"Invalid bandwidth: {self.bandwidth}.")
+            raise ValueError(f"Invalid bandwidth: {bandwidth}.")
 
         self.kernel_type = kernel_type
         self.bandwidth = bandwidth
