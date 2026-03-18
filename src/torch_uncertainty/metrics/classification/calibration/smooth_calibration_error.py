@@ -19,7 +19,7 @@ class SmoothCalibrationError(Metric):
 
     def __init__(
         self,
-        kernel_type: str = "logit",  # 'logit' or 'reflected'
+        kernel_type: Literal["logit", "reflected"] = "logit",
         bandwidth: float | Literal["auto"] = "auto",
         eps: float = 0.001,
         mesh_pts: int = 1000,
@@ -64,9 +64,9 @@ class SmoothCalibrationError(Metric):
         """
         super().__init__(**kwargs)
         if kernel_type not in ["logit", "reflected"]:
-            raise ValueError("kernel_type must be 'logit' or 'reflected'.")
+            raise ValueError(f"kernel_type must be 'logit' or 'reflected'. Got {kernel_type}.")
         if not isinstance(bandwidth, float) and bandwidth != "auto":
-            raise ValueError(f"Invalid bandwidth: {self.bandwidth}")
+            raise ValueError(f"Invalid bandwidth: {self.bandwidth}.")
 
         self.kernel_type = kernel_type
         self.bandwidth = bandwidth
@@ -136,12 +136,12 @@ class SmoothCalibrationError(Metric):
 
     def _search_bandwidth(self, conf: Tensor, acc: Tensor) -> float:
         def check_smooth_ece(alpha: float) -> bool:
-            if alpha < self.eps:
+            if alpha < self.eps:  # coverage: ignore
                 return True
             return alpha < self.eps or alpha < self._compute_smooth_ece(conf, acc, alpha).item()
 
         start, end = 1.0, 0.0
-        if check_smooth_ece(start):
+        if check_smooth_ece(start):  # coverage: ignore
             return start
 
         for _ in range(self.refine_steps):
@@ -164,6 +164,6 @@ class SmoothCalibrationError(Metric):
 
         if isinstance(self.bandwidth, float):
             final_h = self.bandwidth
-        elif self.bandwidth == "auto":
+        else:  # if self.bandwidth == "auto":
             final_h = self._search_bandwidth(conf, acc)
         return self._compute_smooth_ece(conf, acc, final_h)

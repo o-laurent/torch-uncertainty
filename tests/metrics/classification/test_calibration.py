@@ -1,3 +1,5 @@
+from typing import Literal
+
 import matplotlib.pyplot as plt
 import pytest
 import torch
@@ -210,9 +212,15 @@ class TestSmoothCalibrationError:
         assert 0.0 <= ece <= 1.0
 
     @pytest.mark.parametrize("kernel", ["logit", "reflected"])
-    def test_different_kernels(self, kernel: str) -> None:
+    def test_different_kernels(self, kernel: Literal["logit", "reflected"]) -> None:
         metric = SmoothCalibrationError(kernel_type=kernel, bandwidth=0.1)
         preds = torch.tensor([0.7, 0.8])
         target = torch.tensor([1, 1])
         metric.update(preds, target)
         assert metric.compute() >= 0
+
+    def test_errors(self) -> None:
+        with pytest.raises(ValueError, match=r"kernel_type must be 'logit' or 'reflected'. Got"):
+            SmoothCalibrationError(kernel_type="gaussian")
+        with pytest.raises(ValueError, match=r"Invalid bandwidth: "):
+            SmoothCalibrationError(bandwidth="automatic")
