@@ -157,7 +157,7 @@ class TestSmoothCalibrationError:
         acc = torch.full((100,), 0.8)
 
         # We bypass update() logic to test the core smoother
-        val = sce_logit._compute_smooth_ece(conf, acc, h=0.1)
+        val = sce_logit._compute_smooth_ece(conf, acc, bandwidth=0.1)
         assert val < 1e-4
 
     def test_total_miscalibration(self, sce_logit: SmoothCalibrationError) -> None:
@@ -165,7 +165,7 @@ class TestSmoothCalibrationError:
         conf = torch.full((100,), 1.0)
         acc = torch.full((100,), 0.0)
 
-        val = sce_logit._compute_smooth_ece(conf, acc, h=0.1)
+        val = sce_logit._compute_smooth_ece(conf, acc, bandwidth=0.1)
         # The error |1.0 - 0.0| = 1.0
         assert torch.isclose(val, torch.tensor(1.0), atol=1e-2)
 

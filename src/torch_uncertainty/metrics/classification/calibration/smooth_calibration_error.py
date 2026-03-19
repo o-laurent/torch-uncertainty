@@ -129,6 +129,7 @@ class SmoothCalibrationError(Metric):
 
         residuals = conf - acc
         ys, dens = kernel.smooth(conf, residuals, t)
+        ys, dens = ys.float(), dens.float()
 
         valid_mask = dens > 1e-8
         rs = torch.zeros_like(ys)
