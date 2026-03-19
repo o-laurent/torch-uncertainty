@@ -149,7 +149,7 @@ class LogitGaussianKernel:
         self, f: Tensor, x_eval: Tensor, eps: float = 0.001
     ) -> tuple[Tensor, Tensor, float]:
         """Maps [0, 1] data to a normalized logit space."""
-        z = x_eval.view(-1)[1:-1]
+        z = x_eval.view(-1).double()[1:-1]
         logit_z = torch.log(z / (1 - z))
 
         f_clamped = torch.clamp(f, eps, 1 - eps)
@@ -163,9 +163,7 @@ class LogitGaussianKernel:
         logit_z = (logit_z - range_min) / span
         return logit_f, logit_z, 4 / span
 
-    def smooth(
-        self, f: Tensor, y: Tensor, x_eval: Tensor, eps: float = 0.001
-    ) -> tuple[Tensor, Tensor]:
+    def smooth(self, f: Tensor, y: Tensor, x_eval: Tensor) -> tuple[Tensor, Tensor]:
         """Performs smoothing in logit space with a Jacobian correction for the density.
 
         The density is adjusted by $1 / (x(1-x))$ to account for the stretching
@@ -173,7 +171,6 @@ class LogitGaussianKernel:
         """
         logit_f, logit_z, scale = self.transform(f, x_eval)
         kernel = GaussianKernel(self.sigma * scale)
-
         ys, dens = kernel.smooth(logit_f, y, logit_z)
 
         dens /= x_eval[1:-1] * (1 - x_eval[1:-1])

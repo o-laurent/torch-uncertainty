@@ -16,13 +16,14 @@ class SmoothCalibrationError(Metric):
 
     confidences: list[Tensor]
     accuracies: list[Tensor]
+    final_bandwidth: float | None = None
 
     def __init__(
         self,
         kernel_type: Literal["logit", "reflected"] = "logit",
         bandwidth: float | Literal["auto"] = "auto",
         eps: float = 0.001,
-        mesh_pts: int = 1000,
+        mesh_pts: int = 200,
         refine_steps: int = 10,
         **kwargs,
     ):
@@ -48,7 +49,7 @@ class SmoothCalibrationError(Metric):
                 bandwidth is ``'auto'``. Defaults to ``0.001``.
             mesh_pts (int, optional): The base number of points for the grid
                 discretization. The actual number may be higher depending on the
-                bandwidth. Defaults to ``1000``.
+                bandwidth. Defaults to ``200``.
             refine_steps (int, optional): Number of binary search iterations for
                 the ``'auto'`` bandwidth. Defaults to ``10``.
             **kwargs: Additional arguments for the :class:`torchmetrics.Metric` base.
@@ -111,28 +112,23 @@ class SmoothCalibrationError(Metric):
         self.confidences.append(conf)
         self.accuracies.append(acc)
 
-    def _compute_smooth_ece(self, conf: Tensor, acc: Tensor, h: float) -> Tensor:
-        ev_pts = max(int(10 / h), self.mesh_pts)
+    def _compute_smooth_ece(self, conf: Tensor, acc: Tensor, bandwidth: float) -> Tensor:
+        ev_pts = max(int(10 / bandwidth), self.mesh_pts)
         t = torch.linspace(0, 1, ev_pts, device=conf.device)
 
         # Initialize the appropriate kernel
         if self.kernel_type == "logit":
-            kernel = LogitGaussianKernel(h)
+            kernel = LogitGaussianKernel(bandwidth)
         else:
-            kernel = ReflectedGaussianKernel(h)
+            kernel = ReflectedGaussianKernel(bandwidth)
 
-        # Res is the difference between confidence and accuracy
-        res = conf - acc
+        residuals = conf - acc
+        ys, dens = kernel.smooth(conf, residuals, t)
 
-        # The smooth method natively returns conditional expectation (ys) and density
-        ys, dens = kernel.smooth(conf, res, t)
-
-        # Calculate SmECE = E[|ys| * dens] / E[dens]
         valid_mask = dens > 1e-8
         rs = torch.zeros_like(ys)
         rs[valid_mask] = torch.abs(ys[valid_mask])
-
-        return torch.sum(rs * dens) / (torch.sum(dens) + 1e-8)
+        return torch.sum(rs * dens) / (dens.sum() + 1e-8)
 
     def _search_bandwidth(self, conf: Tensor, acc: Tensor) -> float:
         def check_smooth_ece(alpha: float) -> bool:
@@ -150,7 +146,6 @@ class SmoothCalibrationError(Metric):
                 end = midpoint
             else:
                 start = midpoint
-
         return start
 
     def compute(self) -> Tensor:
@@ -163,7 +158,8 @@ class SmoothCalibrationError(Metric):
         acc = dim_zero_cat(self.accuracies)
 
         if isinstance(self.bandwidth, float):
-            final_h = self.bandwidth
+            self.final_bandwidth = self.bandwidth
         else:  # if self.bandwidth == "auto":
-            final_h = self._search_bandwidth(conf, acc)
-        return self._compute_smooth_ece(conf, acc, final_h)
+            self.final_bandwidth = self._search_bandwidth(conf, acc)
+        logging.info("Selected bandwidth: %s", self.final_bandwidth)
+        return self._compute_smooth_ece(conf, acc, self.final_bandwidth)
