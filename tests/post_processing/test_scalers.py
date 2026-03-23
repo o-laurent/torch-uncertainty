@@ -306,7 +306,7 @@ class TestBBQScaler:
             BBQScaler(model=nn.Identity(), max_bins=1)
 
     def test_fit_binary(self, binary_dataloader) -> None:
-        scaler = BBQScaler(model=nn.Identity(), max_bins=5)
+        scaler = BBQScaler(model=nn.Identity(), model_pruning=None, max_bins=5)
         scaler.fit(binary_dataloader, progress=False)
 
         assert scaler.trained

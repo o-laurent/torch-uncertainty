@@ -118,8 +118,8 @@ class SmoothCalibrationError(Metric):
         self.accuracies.append(acc)
 
     def _compute_smooth_ece(self, conf: Tensor, acc: Tensor, bandwidth: float) -> Tensor:
-        ev_pts = max(int(10 / bandwidth), self.mesh_pts)
-        t = torch.linspace(0, 1, ev_pts, device=conf.device)
+        num_smooth_points = max(int(10 / bandwidth), self.mesh_pts)
+        t = torch.linspace(0, 1, num_smooth_points, device=conf.device)
 
         # Initialize the appropriate kernel
         if self.kernel_type == "logit":

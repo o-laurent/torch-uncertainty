@@ -7,22 +7,22 @@ import torch.nn.functional as F
 from torch import Tensor
 
 
-def smooth_round_to_grid(f: Tensor, y: Tensor, eval_points: int) -> Tensor:
+def smooth_round_to_grid(f: Tensor, y: Tensor, num_eval_points: int) -> Tensor:
     """Discretizes continuous positions into a fixed-size grid.
 
     Args:
         f: A 1D Tensor of positions, expected to be normalized in the range [0, 1].
         y: A 1D Tensor of weights or values associated with each position in `f`.
-        eval_points: The number of bins in the output grid.
+        num_eval_points: The number of bins in the output grid.
 
     Returns:
-        A Tensor of shape `(eval_points,)` containing the aggregated weights.
+        A Tensor of shape `(num_eval_points,)` containing the aggregated weights.
     """
-    values = torch.zeros(eval_points, device=f.device)
+    values = torch.zeros(num_eval_points, device=f.device)
 
-    scaled_f = f * (eval_points - 1)
+    scaled_f = f * (num_eval_points - 1)
     # Clamp to ensure bins+1 is always valid, exactly as in np.clip
-    bins = scaled_f.long().clamp(0, eval_points - 2)
+    bins = scaled_f.long().clamp(0, num_eval_points - 2)
     frac = scaled_f - bins
 
     # Efficiently scatter the weights into the grid
@@ -69,40 +69,41 @@ class GaussianKernel:
         res /= math.sqrt(2 * math.pi) * self.sigma
         return res
 
-    def convolve(self, values: Tensor, eval_points: int) -> Tensor:
+    def convolve(self, values: Tensor, num_eval_points: int) -> Tensor:
         """Performs 1D convolution with 'same' padding to smooth the grid."""
-        ker = self.kernel_ev(eval_points, values.device).view(1, 1, -1)
+        ker = self.kernel_ev(num_eval_points, values.device).view(1, 1, -1)
         v = values.view(1, 1, -1)
         # 1D Convolution with 'same' padding
         smoothed = F.conv1d(v, ker, padding="same")
         return smoothed.view(-1)
 
-    def apply(self, f: Tensor, y: Tensor, x_eval: Tensor, eval_points: int | None = None) -> Tensor:
+    def apply(self, f: Tensor, y: Tensor, eval_coordinates: Tensor, num_eval_points: int | None = None) -> Tensor:
         """Maps data to a grid, convolves with the Gaussian, and interpolates back."""
-        if eval_points is None:
-            eval_points = max(2000, round(20 / self.sigma))
-        eval_points = (eval_points // 2) + 1
+        if num_eval_points is None:
+            num_eval_points = max(2000, round(20 / self.sigma))
+        num_eval_points = (num_eval_points // 2) + 1
 
-        values = smooth_round_to_grid(f, y, eval_points)
-        smoothed = self.convolve(values, eval_points)
-        return interpolate(x_eval, smoothed)
+        values = smooth_round_to_grid(f, y, num_eval_points)
+        smoothed = self.convolve(values, num_eval_points)
+        return interpolate(eval_coordinates, smoothed)
 
     def smooth(
-        self, f: Tensor, y: Tensor, x_eval: Tensor, eps: float = 1e-4
+        self, f: Tensor, y: Tensor, eval_coordinates: Tensor, eps: float = 1e-4
     ) -> tuple[Tensor, Tensor]:
         """Performs kernel smoothing.
 
         Args:
-            f: Input positions [0, 1].
-            y: Input values.
-            x_eval: Points at which to evaluate the smoothed function.
-            eps: A small constant to prevent division by zero in low-density regions.
+            f (Tensor): Input positions [0, 1].
+            y (Tensor): Input values.
+            eval_coordinates (Tensor): Point coordinates at which to evaluate the smoothed function.
+            eps (float): A small constant to prevent division by zero in low-density regions.
+                Defaults to ``1e-4``.
 
         Returns:
             A tuple of (smoothed_values, density_estimates).
         """
-        ys = self.apply(f, y, x_eval)
-        dens = self.apply(f, torch.ones_like(y), x_eval) + eps
+        ys = self.apply(f, y, eval_coordinates)
+        dens = self.apply(f, torch.ones_like(y), eval_coordinates) + eps
         return ys / dens, dens
 
 
@@ -114,16 +115,16 @@ class ReflectedGaussianKernel(GaussianKernel):
     the signal across the boundaries before convolving.
     """
 
-    def convolve(self, values: Tensor, eval_points: int) -> Tensor:
-        ker = self.kernel_ev(eval_points, values.device).view(1, 1, -1)
+    def convolve(self, values: Tensor, num_eval_points: int) -> Tensor:
+        ker = self.kernel_ev(num_eval_points, values.device).view(1, 1, -1)
 
         # Reflect boundaries
         flip_v = torch.flip(values, dims=[0])
         ext_vals = torch.cat([flip_v[:-1], values, flip_v[1:]], dim=0).view(1, 1, -1)
 
         smoothed = F.conv1d(ext_vals, ker, padding="valid").view(-1)
-        start = eval_points // 2
-        return smoothed[start : start + eval_points]
+        start = num_eval_points // 2
+        return smoothed[start : start + num_eval_points]
 
 
 class LogitGaussianKernel:
@@ -140,10 +141,10 @@ class LogitGaussianKernel:
         self.sigma = sigma
 
     def transform(
-        self, f: Tensor, x_eval: Tensor, eps: float = 0.001
+        self, f: Tensor, eval_coordinates: Tensor, eps: float = 0.001
     ) -> tuple[Tensor, Tensor, float]:
         """Maps [0, 1] data to a normalized logit space."""
-        z = x_eval.view(-1).double()[1:-1]
+        z = eval_coordinates.view(-1).double()[1:-1]
         logit_z = torch.log(z / (1 - z))
 
         f_clamped = torch.clamp(f, eps, 1 - eps)
@@ -157,18 +158,18 @@ class LogitGaussianKernel:
         logit_z = (logit_z - range_min) / span
         return logit_f, logit_z, 4 / span
 
-    def smooth(self, f: Tensor, y: Tensor, x_eval: Tensor) -> tuple[Tensor, Tensor]:
+    def smooth(self, f: Tensor, y: Tensor, eval_coordinates: Tensor) -> tuple[Tensor, Tensor]:
         """Performs smoothing in logit space with a Jacobian correction for the density.
 
         The density is adjusted by $1 / (x(1-x))$ to account for the stretching
         of the logit transform.
         """
-        logit_f, logit_z, scale = self.transform(f, x_eval)
+        logit_f, logit_z, scale = self.transform(f, eval_coordinates)
         kernel = GaussianKernel(self.sigma * scale)
         ys, dens = kernel.smooth(logit_f, y, logit_z)
 
-        dens /= x_eval[1:-1] * (1 - x_eval[1:-1])
-        dens *= len(f) * len(x_eval) / (dens.sum() + 1e-9)
+        dens /= eval_coordinates[1:-1] * (1 - eval_coordinates[1:-1])
+        dens *= len(f) * len(eval_coordinates) / (dens.sum() + 1e-9)
 
         # Re-pad the ends that were sliced during the logit transform
         ys_full = torch.cat([ys[:1], ys, ys[-1:]])
