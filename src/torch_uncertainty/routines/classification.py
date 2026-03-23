@@ -8,7 +8,6 @@ from lightning.pytorch import LightningModule
 from lightning.pytorch.loggers import Logger
 from lightning.pytorch.utilities.types import STEP_OUTPUT, OptimizerLRScheduler
 from torch import Tensor, nn
-from torch.optim import Optimizer
 from torch.utils.flop_counter import FlopCounterMode
 from torchmetrics import Accuracy, MetricCollection
 from torchmetrics.classification import (
@@ -32,6 +31,7 @@ from torch_uncertainty.metrics import (
     MutualInformation,
     RiskAt80Cov,
     SetSize,
+    SmoothCalibrationError,
 )
 from torch_uncertainty.models import (
     EPOCH_UPDATE_MODEL,
@@ -61,7 +61,7 @@ class ClassificationRoutine(LightningModule):
         is_ensemble: bool = False,
         num_tta: int = 1,
         format_batch_fn: nn.Module | None = None,
-        optim_recipe: dict | Optimizer | None = None,
+        optim_recipe: OptimizerLRScheduler | None = None,
         mixup_params: dict | None = None,
         eval_ood: bool = False,
         eval_shift: bool = False,
@@ -86,7 +86,7 @@ class ClassificationRoutine(LightningModule):
                 Defaults to ``1``.
             format_batch_fn (torch.nn.Module, optional): Function to format the batch.
                 Defaults to ``None``.
-            optim_recipe (dict or torch.optim.Optimizer, optional): The optimizer and
+            optim_recipe (OptimizerLRScheduler, optional): The optimizer and
                 optionally the scheduler to use. Defaults to ``None``.
             mixup_params (dict, optional): Mixup parameters. Can include mixup type,
                 mixup mode, distance similarity, kernel tau max, kernel tau std,
@@ -178,9 +178,9 @@ class ClassificationRoutine(LightningModule):
         self._init_metrics()
         self.mixup = self._init_mixup(mixup_params)
 
-        self.is_elbo = isinstance(self.loss, ELBOLoss)
-        if self.is_elbo:
+        if isinstance(self.loss, ELBOLoss):
             self.loss.set_model(self.model)
+
         self.is_dec = isinstance(self.loss, DECLoss)
 
         self.id_score_storage = None
@@ -199,12 +199,19 @@ class ClassificationRoutine(LightningModule):
                 num_bins=self.num_bins_calibration_error,
                 num_classes=self.num_classes,
             ),
+            "cal/MCE": CalibrationError(
+                task=task,
+                num_bins=self.num_bins_calibration_error,
+                num_classes=self.num_classes,
+                norm="max",
+            ),
             "cal/aECE": CalibrationError(
                 task=task,
                 adaptive=True,
                 num_bins=self.num_bins_calibration_error,
                 num_classes=self.num_classes,
             ),
+            "cal/SmECE": SmoothCalibrationError(),
             "sc/AURC": AURC(),
             "sc/AUGRC": AUGRC(),
             "sc/Cov@5Risk": CovAt5Risk(),
@@ -214,7 +221,7 @@ class ClassificationRoutine(LightningModule):
             ["cls/Acc"],
             ["cls/Brier"],
             ["cls/NLL"],
-            ["cal/ECE", "cal/aECE"],
+            ["cal/ECE", "cal/SmECE", "cal/MCE", "cal/aECE"],
             ["sc/AURC", "sc/AUGRC", "sc/Cov@5Risk", "sc/Risk@80Cov"],
         ]
 
@@ -326,9 +333,7 @@ class ClassificationRoutine(LightningModule):
                 "To train a model, you must specify the `loss` argument in the routine. Got None."
             )
         if self.logger is not None:
-            self.logger.log_hyperparams(
-                self.hparams,
-            )
+            self.logger.log_hyperparams(self.hparams)
 
     def on_validation_start(self) -> None:
         """Prepare the validation step.
@@ -391,10 +396,15 @@ class ClassificationRoutine(LightningModule):
         Returns:
             Tensor: the loss corresponding to this training step.
         """
+        if self.loss is None:
+            raise ValueError(
+                "To train a model, you must specify the `loss` argument in the routine. Got None."
+            )
+
         batch = self._apply_mixup(batch)
         inputs, target = self.format_batch_fn(batch)
 
-        if self.is_elbo:
+        if isinstance(self.loss, ELBOLoss):
             loss = self.loss(inputs, target)
         else:
             logits = self.forward(inputs)

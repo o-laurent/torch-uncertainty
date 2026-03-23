@@ -5,7 +5,7 @@ from torch_uncertainty.metrics.classification import FPR95, FPRx
 
 
 class TestFPR95:
-    """Testing the Entropy metric class."""
+    """Testing the FPR95 metric class."""
 
     def test_compute_zero(self) -> None:
         metric = FPR95(pos_label=1)
