@@ -77,7 +77,9 @@ class GaussianKernel:
         smoothed = F.conv1d(v, ker, padding="same")
         return smoothed.view(-1)
 
-    def apply(self, f: Tensor, y: Tensor, eval_coordinates: Tensor, num_eval_points: int | None = None) -> Tensor:
+    def apply(
+        self, f: Tensor, y: Tensor, eval_coordinates: Tensor, num_eval_points: int | None = None
+    ) -> Tensor:
         """Maps data to a grid, convolves with the Gaussian, and interpolates back."""
         if num_eval_points is None:
             num_eval_points = max(2000, round(20 / self.sigma))
