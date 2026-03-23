@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "torch_uncertainty"
-version = "0.10.4"
+version = "0.11.0"
 authors = [
   { name = "Adrien Lafage", email = "adrienlafage@outlook.com" },
   { name = "Olivier Laurent", email = "olivier.ar.laurent@gmail.com" },
@@ -39,7 +39,7 @@ dev = [
   { include-group = "docs" },
 ]
 
-lint = ["ruff==0.15.5", "pre-commit", "pre-commit-hooks"]
+lint = ["ruff==0.15.7", "pre-commit", "pre-commit-hooks"]
 test = ["torch_uncertainty[all]", "pytest-cov"]
 docs = [
   "sphinx==7.4.7",
